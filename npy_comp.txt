@@ -1,0 +1,28 @@
+import numpy as np
+
+# Load the .npy files
+array1 = np.load('array1.npy')
+array2 = np.load('array2.npy')
+
+# Calculate the difference array
+difference_array = array1 - array2
+
+# Compute Mean Squared Error (MSE)
+mse = np.mean(np.square(difference_array))
+
+# Compute statistics for each array
+def compute_statistics(array):
+    return {
+        'max': np.max(array),
+        'min': np.min(array),
+        'average': np.mean(array)
+    }
+
+stats_array1 = compute_statistics(array1)
+stats_array2 = compute_statistics(array2)
+
+# Print results
+print("Difference Array:\n", difference_array)
+print("Mean Squared Error:", mse)
+print("Array 1 Statistics:", stats_array1)
+print("Array 2 Statistics:", stats_array2)
