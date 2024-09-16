@@ -1,0 +1,6 @@
+https://synopsys-my.sharepoint.com/personal/yche_synopsys_com/_layouts/15/stream.aspx?id=%2Fpersonal%2Fyche%5Fsynopsys%5Fcom%2FDocuments%2FRecordings%2FSynopsys%2DMCW%20NNSDK%20compiler%20frontend%20work%20regular%20sync%20up%2D20240830%5F172402%2DMeeting%20Recording%2Emp4&referrer=StreamWebApp%2EWeb&referrerScenario=AddressBarCopied%2Eview%2E1bfd63a0%2Df71e%2D4237%2Db3d7%2D9a3221965e0f
+
+Some simple passes to study at first might be:
+https://gitsnps.internal.synopsys.com/dwc_ev/nnsdk/nnac/-/blob/main/nnac/legalizer/custom_optimize_pass/fuse_gemm_add.py?ref_type=heads
+https://gitsnps.internal.synopsys.com/dwc_ev/nnsdk/nnac/-/blob/main/nnac/legalizer/custom_optimize_pass/fuse_relu_clip.py?ref_type=heads
+https://gitsnps.internal.synopsys.com/dwc_ev/nnsdk/nnac/-/blob/main/nnac/legalizer/custom_optimize_pass/swap_clip_mul.py?ref_type=heads
