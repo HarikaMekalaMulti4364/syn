@@ -1,12 +1,13 @@
 import onnx
-import networkx as nx
-from onnx import helper, numpy_helper
+from onnx import helper, checker
 
-def fuse_subgraph_to_groupnorm(model):
-    # Step 1: Load the ONNX model graph
+def fuse_group_norm(model_path, output_path):
+    # Load the ONNX model
+    model = onnx.load(model_path)
     graph = model.graph
 
-    # Step 2: Traverse the graph to find the pattern (Reshape -> InstanceNorm -> Reshape -> Mul -> Add)
+    # Traverse the graph to find the pattern (Reshape -> InstanceNorm -> Reshape -> Mul -> Add)
+    nodes_to_remove = []
     for node in graph.node:
         if node.op_type == 'InstanceNormalization':
             instance_norm_node = node
@@ -18,30 +19,40 @@ def fuse_subgraph_to_groupnorm(model):
             add_node = find_succeeding_node(graph, mul_node, 'Add')
 
             if pre_reshape and post_reshape and mul_node and add_node:
-                # Step 3: Create the new GroupNormalization node
+                # Extract scale and bias
+                scale = get_tensor_value(graph, mul_node.input[1])
+                bias = get_tensor_value(graph, add_node.input[1])
+
+                # Calculate num_groups and num_channels
+                num_channels = len(graph.node[instance_norm_node.input[0]].type.tensor_type.shape.dim)
+                num_groups = 32  # Adjust this as needed based on your model
+                
+                # Create the new GroupNormalization node
                 group_norm_node = helper.make_node(
                     'GroupNormalization',
                     inputs=[pre_reshape.input[0], instance_norm_node.input[1], instance_norm_node.input[2]],
                     outputs=[add_node.output[0]],
                     name='GroupNormalization_Fused',
-                    axis=1,  # GroupNorm works across channels
-                    num_groups=32  # Ideally, this should be derived from the shape
+                    axis=1,  # Example axis, adjust if necessary
+                    num_groups=num_groups
                 )
 
-                # Step 4: Remove old nodes
-                graph.node.remove(pre_reshape)
-                graph.node.remove(instance_norm_node)
-                graph.node.remove(post_reshape)
-                graph.node.remove(mul_node)
-                graph.node.remove(add_node)
-
-                # Step 5: Add the new GroupNormalization node to the graph
+                # Add GroupNormalization node and mark old nodes for removal
                 graph.node.append(group_norm_node)
+                nodes_to_remove.extend([pre_reshape, instance_norm_node, post_reshape, mul_node, add_node])
 
-    # Step 6: Save the modified model
-    onnx.save(model, 'model_with_groupnorm.onnx')
+    # Remove old nodes
+    for node in nodes_to_remove:
+        graph.node.remove(node)
 
-# Helper functions to find preceding and succeeding nodes in the graph
+    # Save the modified model
+    onnx.save(model, output_path)
+    print(f"Model saved to {output_path}")
+
+    # Optionally validate the model
+    checker.check_model(onnx.load(output_path))
+    print("Model is valid!")
+
 def find_preceding_node(graph, target_node, op_type):
     for node in graph.node:
         if node.output[0] in target_node.input and node.op_type == op_type:
@@ -52,4 +63,10 @@ def find_succeeding_node(graph, target_node, op_type):
     for node in graph.node:
         if node.input[0] in target_node.output and node.op_type == op_type:
             return node
+    return None
+
+def get_tensor_value(graph, tensor_name):
+    for tensor in graph.initializer:
+        if tensor.name == tensor_name:
+            return numpy_helper.to_array(tensor)
     return None
