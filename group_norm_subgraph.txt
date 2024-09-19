@@ -1,0 +1,55 @@
+import onnx
+import networkx as nx
+from onnx import helper, numpy_helper
+
+def fuse_subgraph_to_groupnorm(model):
+    # Step 1: Load the ONNX model graph
+    graph = model.graph
+
+    # Step 2: Traverse the graph to find the pattern (Reshape -> InstanceNorm -> Reshape -> Mul -> Add)
+    for node in graph.node:
+        if node.op_type == 'InstanceNormalization':
+            instance_norm_node = node
+
+            # Find the Reshape nodes and the Mul and Add nodes
+            pre_reshape = find_preceding_node(graph, node, 'Reshape')
+            post_reshape = find_succeeding_node(graph, node, 'Reshape')
+            mul_node = find_succeeding_node(graph, post_reshape, 'Mul')
+            add_node = find_succeeding_node(graph, mul_node, 'Add')
+
+            if pre_reshape and post_reshape and mul_node and add_node:
+                # Step 3: Create the new GroupNormalization node
+                group_norm_node = helper.make_node(
+                    'GroupNormalization',
+                    inputs=[pre_reshape.input[0], instance_norm_node.input[1], instance_norm_node.input[2]],
+                    outputs=[add_node.output[0]],
+                    name='GroupNormalization_Fused',
+                    axis=1,  # GroupNorm works across channels
+                    num_groups=32  # Ideally, this should be derived from the shape
+                )
+
+                # Step 4: Remove old nodes
+                graph.node.remove(pre_reshape)
+                graph.node.remove(instance_norm_node)
+                graph.node.remove(post_reshape)
+                graph.node.remove(mul_node)
+                graph.node.remove(add_node)
+
+                # Step 5: Add the new GroupNormalization node to the graph
+                graph.node.append(group_norm_node)
+
+    # Step 6: Save the modified model
+    onnx.save(model, 'model_with_groupnorm.onnx')
+
+# Helper functions to find preceding and succeeding nodes in the graph
+def find_preceding_node(graph, target_node, op_type):
+    for node in graph.node:
+        if node.output[0] in target_node.input and node.op_type == op_type:
+            return node
+    return None
+
+def find_succeeding_node(graph, target_node, op_type):
+    for node in graph.node:
+        if node.input[0] in target_node.output and node.op_type == op_type:
+            return node
+    return None
